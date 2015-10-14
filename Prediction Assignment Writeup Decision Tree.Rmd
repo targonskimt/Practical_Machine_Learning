@@ -1,0 +1,110 @@
+---
+title: "Prediction Assignment Writeup Decision Tree"
+output: html_document
+---
+
+## Set up
+Load all appropriate libraries, their dependencies, and set a seed for repeatability purposes. 
+
+```{r, echo=TRUE}
+library(lattice)
+library(ggplot2)
+library(caret)
+library(rpart)
+set.seed(7742)
+```
+
+ 
+##Load the Data
+Download the training and testing data from: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv & https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv respectively. 
+
+Set the working directory to the location of the downloaded files:
+```{r, echo=TRUE}
+setwd('C:/Users/m20mm/Desktop/coursera/08. Practical Machine Learning/')
+```
+
+Load them in:
+```{r,  echo=TRUE}
+myRawTraining <- read.csv("pml-training.csv", header = TRUE)
+myRawTesting <- read.csv("pml-testing.csv", header = TRUE)
+```
+
+
+## Cleaning the Data 
+For our prediction, we will only focus on those variables that we believe are useful in prediction. Lets remove the near zero variables using the caret library:
+
+```{r, echo=TRUE}
+NearZeroVariables <- nearZeroVar(myRawTraining, saveMetrics=TRUE)
+myTrainingTemp <- myRawTraining[,NearZeroVariables$nzv==FALSE]
+```
+
+Remove the X attribute as we are in no need for it:
+```{r, echo=TRUE}
+myTrainingTemp$X <- NULL
+```
+
+
+## Set Up
+We will now split our training set into 2 subcategories: training (60% of data) and cross validating (40% of data):
+
+```{r, echo=TRUE}
+mySplitTraining = createDataPartition(myTrainingTemp$classe, p = 0.6, list=FALSE)
+myTraining = myTrainingTemp[mySplitTraining,]
+myCrossValidation = myTrainingTemp[-mySplitTraining,]
+```
+
+
+## Prediction Algorithm: Decision Tree
+We will use the rpart package for the decision tree algorithm: build the tree
+
+```{r, echo=TRUE}
+myTree <- rpart(classe ~ ., data=myTraining, method="class")
+```
+
+Predict on our myCrossValidation sample to see the accuracy:
+```{r, echo=TRUE}
+myTestPrediction <- predict(myTree, myCrossValidation, type = "class")
+confusionMatrix(myTestPrediction, myCrossValidation$classe)
+```
+
+According to our Cross Validation, the accuracy is 87% which is quite decent.  
+
+
+## Predict the Results 
+Firstly, lets clean up our raw testing data set to mimic the structure of our training in terms of type and which variables to use. 
+
+```{r, echo=TRUE}
+myTesting = myTraining[0,1:98]
+myTestingTemp <- myRawTesting[,NearZeroVariables$nzv==FALSE]
+myTestingTemp$X <- NULL
+
+for (i in 1:20) 
+{
+   myTesting[i, ] <- myTestingTemp[i,1:98]
+}
+```
+
+Use our Decision Tree to predict the results:
+```{r, echo=TRUE}
+myResult <- predict(myTree, myTesting, type="class")
+myResult
+```
+
+
+## Generate the Submission Files 
+Provided code:
+```{r, echo=TRUE}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+
+pml_write_files(myResult)
+```
+
+## Submission with Results 
+Since our model accuracy is 87% on our cross validation, we suspect we will get ~19/20 predictions right on the real testing. Actual result was 18/20 which is within a reasonable expected results.  
+
